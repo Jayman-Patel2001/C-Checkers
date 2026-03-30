@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Role: "ADMIN" | "EMPLOYEE"
+// TaskCategory: "WORK" | "PERSONAL"
+// TaskStatus: "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED"
+// TaskEvent: "CREATED" | "STARTED" | "PAUSED" | "RESUMED" | "COMPLETED"
+// ReviewStatus: "APPROVED" | "REJECTED"
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("EMPLOYEE")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shifts      Shift[]
+  taskEntries TaskEntry[]
+  reviews     Review[] @relation("AdminReviews")
+
+  @@map("users")
+}
+
+model Shift {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime DateTime  @default(now())
+  endTime   DateTime?
+  createdAt DateTime  @default(now())
+
+  taskEntries TaskEntry[]
+
+  @@map("shifts")
+}
+
+model TaskDefinition {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  category    String  @default("WORK")
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taskEntries TaskEntry[]
+  assignments TaskAssignment[]
+
+  @@map("task_definitions")
+}
+
+// Maps which task definitions are assigned to which employees
+// If no assignments exist for a task, it's visible to ALL employees
+model TaskAssignment {
+  id               String         @id @default(cuid())
+  taskDefinitionId String
+  taskDefinition   TaskDefinition @relation(fields: [taskDefinitionId], references: [id], onDelete: Cascade)
+  userId           String
+  createdAt        DateTime       @default(now())
+
+  @@unique([taskDefinitionId, userId])
+  @@map("task_assignments")
+}
+
+model TaskEntry {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shiftId             String
+  shift               Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  taskDefinitionId    String?
+  taskDefinition      TaskDefinition? @relation(fields: [taskDefinitionId], references: [id])
+  name                String
+  description         String?
+  category            String    @default("WORK")
+  isCustom            Boolean   @default(false)
+  status              String    @default("PENDING")
+  createdAt           DateTime  @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  activeIntervalStart DateTime?
+  totalActiveTime     Int       @default(0)
+
+  events TaskEventLog[]
+  review Review?
+
+  @@map("task_entries")
+}
+
+model TaskEventLog {
+  id          String    @id @default(cuid())
+  taskEntryId String
+  taskEntry   TaskEntry @relation(fields: [taskEntryId], references: [id], onDelete: Cascade)
+  event       String
+  timestamp   DateTime  @default(now())
+  note        String?
+
+  @@map("task_event_logs")
+}
+
+model Review {
+  id          String    @id @default(cuid())
+  taskEntryId String    @unique
+  taskEntry   TaskEntry @relation(fields: [taskEntryId], references: [id], onDelete: Cascade)
+  adminId     String
+  admin       User      @relation("AdminReviews", fields: [adminId], references: [id])
+  status      String
+  comment     String?
+  reviewedAt  DateTime  @default(now())
+
+  @@map("reviews")
+}
