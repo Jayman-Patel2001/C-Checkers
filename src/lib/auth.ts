@@ -23,17 +23,15 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!user || !user.isActive) {
-            console.error("[auth] user not found or inactive:", credentials.email);
             return null;
           }
 
           const isPasswordValid = await bcrypt.compare(
-            credentials.password,
+            credentials.password.trim(),
             user.password
           );
 
           if (!isPasswordValid) {
-            console.error("[auth] invalid password for:", credentials.email, "| pw length:", credentials.password.length, "| hash prefix:", user.password.substring(0, 7));
             return null;
           }
 
