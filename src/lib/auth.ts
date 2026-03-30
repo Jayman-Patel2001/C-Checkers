@@ -33,7 +33,7 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (!isPasswordValid) {
-            console.error("[auth] invalid password for:", credentials.email);
+            console.error("[auth] invalid password for:", credentials.email, "| pw length:", credentials.password.length, "| hash prefix:", user.password.substring(0, 7));
             return null;
           }
 
