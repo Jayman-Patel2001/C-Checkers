@@ -8,19 +8,17 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { action, scheduledClockOut } = await req.json(); // "in" | "out", optional scheduledClockOut for pre-setting
+  const { action, scheduleId, scheduledClockOut } = await req.json(); // "in" | "out", ID, optional scheduledClockOut for pre-setting
 
-  // Use UTC midnight to match stored schedule dates
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  if (!scheduleId) return NextResponse.json({ error: "No schedule specified" }, { status: 400 });
 
-  const schedule = await prisma.employeeSchedule.findFirst({
-    where: {
-      userId: session.user.id,
-      date: today,
-      isDayOff: false,
-    },
+  const schedule = await prisma.employeeSchedule.findUnique({
+    where: { id: scheduleId },
   });
+
+  if (!schedule || schedule.userId !== session.user.id || schedule.isDayOff) {
+    return NextResponse.json({ error: "Invalid schedule" }, { status: 404 });
+  }
 
   if (!schedule) {
     return NextResponse.json({ error: "No schedule found for today" }, { status: 404 });

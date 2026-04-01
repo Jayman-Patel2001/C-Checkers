@@ -11,10 +11,11 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function formatTime12(t: string) {
   if (!t) return "";
   if (t === "00:00") return "12am";
-  const [h] = t.split(":").map(Number);
-  if (h === 0) return "12am";
-  if (h === 12) return "12pm";
-  return h > 12 ? `${h - 12}pm` : `${h}am`;
+  const [h, m] = t.split(":").map(Number);
+  const mStr = m === 0 ? "" : `:${String(m).padStart(2, "0")}`;
+  if (h === 0) return `12${mStr}am`;
+  if (h === 12) return `12${mStr}pm`;
+  return h > 12 ? `${h - 12}${mStr}pm` : `${h}${mStr}am`;
 }
 
 interface ScheduleEntry {
@@ -37,7 +38,6 @@ export default function EmployeeSchedulePage() {
 
   const { data, mutate } = useSWR<{
     currentWeek: { weekStartDate: string; weekEndDate: string; employeeSchedules: ScheduleEntry[] } | null;
-    todaySchedule: ScheduleEntry | null;
     payHistory: PayHistory[];
     clockedHoursThisWeek: number;
     estimatedEarningsThisWeek: number | null;
@@ -53,9 +53,10 @@ export default function EmployeeSchedulePage() {
   }
 
   async function clock(action: "in" | "out", withPreset = false) {
+    if (!today?.id) return;
     setClocking(true);
     try {
-      const body: { action: string; scheduledClockOut?: string } = { action };
+      const body: { action: string; scheduleId: string; scheduledClockOut?: string } = { action, scheduleId: today.id };
       if (action === "out" && withPreset) {
         body.scheduledClockOut = buildPresetDateTime();
       }
@@ -75,17 +76,19 @@ export default function EmployeeSchedulePage() {
     }
   }
 
-  const today = data?.todaySchedule;
   const week = data?.currentWeek;
 
-  // Check if the API's "today" schedule actually matches the user's local date
-  const isActuallyToday = (() => {
-    if (!today) return false;
-    const schedDate = new Date(today.date);
-    const now = new Date();
-    return schedDate.getUTCFullYear() === now.getFullYear()
-      && schedDate.getUTCMonth() === now.getMonth()
-      && schedDate.getUTCDate() === now.getDate();
+  // Find today's schedule out of the loaded week, based on the user's REAL local date
+  const today = (() => {
+    if (!week) return null;
+    const nowLocal = new Date();
+    return week.employeeSchedules.find((s) => {
+      const schedDate = new Date(s.date); // This parses the UTC date string
+      // Does this schedule's UTC day match our local day?
+      return schedDate.getUTCFullYear() === nowLocal.getFullYear() &&
+             schedDate.getUTCMonth() === nowLocal.getMonth() &&
+             schedDate.getUTCDate() === nowLocal.getDate();
+    }) || null;
   })();
 
   const weekDays = week
@@ -125,14 +128,6 @@ export default function EmployeeSchedulePage() {
         </div>
         {!today || today.isDayOff || !today.scheduledStart ? (
           <p className="text-slate-400 text-sm">{!today || !today.scheduledStart ? "No shift scheduled today" : "You have the day off today"}</p>
-        ) : !isActuallyToday ? (
-          <div className="space-y-1">
-            <p className="text-xs text-slate-400">Upcoming shift — {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}</p>
-            <p className="font-mono font-bold text-lg">
-              {formatTime12(today.scheduledStart ?? "")} – {formatTime12(today.scheduledEnd ?? "")}
-            </p>
-            <p className="text-xs text-slate-500">Clock-in will be available on the scheduled day.</p>
-          </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-4">

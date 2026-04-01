@@ -34,13 +34,6 @@ export async function GET() {
     orderBy: { weekStartDate: "desc" },
   });
 
-  // Today's schedule for clock in/out — use UTC midnight to match stored dates
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todaySchedule = await prisma.employeeSchedule.findFirst({
-    where: { userId: session.user.id, date: todayStart },
-  });
-
   // Payment history (2 months) — only show paid entries to employee
   const payHistory = await prisma.weeklyPaySummary.findMany({
     where: {
@@ -73,5 +66,5 @@ export async function GET() {
     ? Math.round(clockedHoursThisWeek * latestRate.hourlyRate * 100) / 100
     : null;
 
-  return NextResponse.json({ currentWeek, todaySchedule, payHistory, clockedHoursThisWeek: Math.round(clockedHoursThisWeek * 100) / 100, estimatedEarningsThisWeek });
+  return NextResponse.json({ currentWeek, payHistory, clockedHoursThisWeek: Math.round(clockedHoursThisWeek * 100) / 100, estimatedEarningsThisWeek });
 }

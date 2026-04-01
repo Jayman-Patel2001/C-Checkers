@@ -68,10 +68,11 @@ function formatDateShort(d: Date) {
 function formatTime12(t: string) {
   if (!t) return "";
   if (t === "00:00") return "12am";
-  const [h] = t.split(":").map(Number);
-  if (h === 0) return "12am";
-  if (h === 12) return "12pm";
-  return h > 12 ? `${h - 12}pm` : `${h}am`;
+  const [h, m] = t.split(":").map(Number);
+  const mStr = m === 0 ? "" : `:${String(m).padStart(2, "0")}`;
+  if (h === 0) return `12${mStr}am`;
+  if (h === 12) return `12${mStr}pm`;
+  return h > 12 ? `${h - 12}${mStr}pm` : `${h}${mStr}am`;
 }
 
 function formatDateTime(dt: string | null) {
