@@ -81,7 +81,7 @@ export default function EmployeeSchedulePage() {
   const weekDays = week
     ? Array.from({ length: 7 }, (_, i) => {
         const d = new Date(week.weekStartDate);
-        d.setDate(d.getDate() + i);
+        d.setUTCDate(d.getUTCDate() + i);
         return d;
       })
     : [];
@@ -91,7 +91,7 @@ export default function EmployeeSchedulePage() {
     const target = weekDays[dayIdx];
     return week.employeeSchedules.find((s) => {
       const sd = new Date(s.date);
-      return sd.getDate() === target.getDate() && sd.getMonth() === target.getMonth();
+      return sd.getUTCDate() === target.getUTCDate() && sd.getUTCMonth() === target.getUTCMonth();
     }) ?? null;
   };
 
@@ -218,7 +218,7 @@ export default function EmployeeSchedulePage() {
                 }`}>
                   <div className="font-semibold mb-1">{DAYS[i]}</div>
                   <div className={`text-[10px] ${isToday ? "text-blue-200" : "text-slate-400"}`}>
-                    {weekDays[i]?.getDate()}
+                    {weekDays[i]?.getUTCDate()}
                   </div>
                   {s?.isDayOff ? (
                     <div className="mt-1 font-medium">OFF</div>

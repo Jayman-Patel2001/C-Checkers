@@ -10,8 +10,9 @@ export async function POST(req: NextRequest) {
 
   const { action, scheduledClockOut } = await req.json(); // "in" | "out", optional scheduledClockOut for pre-setting
 
+  // Use UTC midnight to match stored schedule dates
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setUTCHours(0, 0, 0, 0);
 
   const schedule = await prisma.employeeSchedule.findFirst({
     where: {

@@ -118,16 +118,16 @@ export default function SchedulePage() {
     });
   }
 
-  const weekKey = currentMonday.toISOString().split("T")[0];
+  function toLocalDateStr(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  const weekKey = toLocalDateStr(currentMonday);
 
   const { data: weeksData, mutate: mutateWeeks } = useSWR<{ weeks: { id: string; weekStartDate: string }[] }>("/api/schedule", fetcher);
   const { data: shopData, mutate: mutateShop } = useSWR<{ hours: ShopHour[] }>("/api/schedule/shop-hours", fetcher);
 
-  const currentWeek = weeksData?.weeks.find((w) => {
-    const ws = new Date(w.weekStartDate);
-    ws.setHours(0, 0, 0, 0);
-    return ws.getTime() === currentMonday.getTime();
-  });
+  const currentWeek = weeksData?.weeks.find((w) => w.weekStartDate.startsWith(weekKey));
 
   const { data: weekData, mutate: mutateWeek } = useSWR<{ week: WeekData; currentRates: Record<string, number> }>(
     currentWeek ? `/api/schedule/${currentWeek.id}` : null,
@@ -145,7 +145,7 @@ export default function SchedulePage() {
     if (!weekData?.week) return map;
     for (const s of weekData.week.employeeSchedules) {
       const date = new Date(s.date);
-      const dow = (date.getDay() + 6) % 7; // Mon=0
+      const dow = (date.getUTCDay() + 6) % 7; // Mon=0
       if (!map[s.userId]) map[s.userId] = {};
       map[s.userId][dow] = s;
     }
@@ -177,7 +177,7 @@ export default function SchedulePage() {
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStartDate: currentMonday.toISOString(), copyFromWeekId }),
+        body: JSON.stringify({ weekStartDate: toLocalDateStr(currentMonday), copyFromWeekId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -192,10 +192,7 @@ export default function SchedulePage() {
   }
 
   // Find the most recent previous week to copy from
-  const previousWeek = weeksData?.weeks.find((w) => {
-    const ws = new Date(w.weekStartDate);
-    return ws.getTime() < currentMonday.getTime();
-  });
+  const previousWeek = weeksData?.weeks.find((w) => w.weekStartDate.slice(0, 10) < weekKey);
 
   async function saveCell(scheduleId: string, data: Record<string, unknown>) {
     setSaving(true);

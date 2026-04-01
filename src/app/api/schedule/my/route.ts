@@ -11,13 +11,13 @@ export async function GET() {
   const twoMonthsAgo = new Date();
   twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-  // Current week start (Monday)
+  // Current week start (Monday) — use UTC to match stored UTC-midnight dates
   const today = new Date();
-  const day = today.getDay();
+  const day = today.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
   const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() + diff);
-  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setUTCDate(today.getUTCDate() + diff);
+  weekStart.setUTCHours(0, 0, 0, 0);
 
   const currentWeek = await prisma.weekSchedule.findFirst({
     where: {
@@ -34,9 +34,9 @@ export async function GET() {
     orderBy: { weekStartDate: "desc" },
   });
 
-  // Today's schedule for clock in/out
+  // Today's schedule for clock in/out — use UTC midnight to match stored dates
   const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  todayStart.setUTCHours(0, 0, 0, 0);
   const todaySchedule = await prisma.employeeSchedule.findFirst({
     where: { userId: session.user.id, date: todayStart },
   });

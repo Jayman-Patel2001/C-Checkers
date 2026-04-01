@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
   try {
     const { weekStartDate, copyFromWeekId } = await req.json();
 
-    const start = new Date(weekStartDate);
-    start.setHours(0, 0, 0, 0);
+    // weekStartDate is a local date string "YYYY-MM-DD" — store as UTC midnight
+    const start = new Date(weekStartDate + "T00:00:00.000Z");
     const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    end.setUTCDate(end.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
 
     const existing = await prisma.weekSchedule.findFirst({
       where: { weekStartDate: start },
@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
             ? Math.round((new Date(s.date).getTime() - prevStart.getTime()) / 86400000)
             : 0;
           const newDate = new Date(start);
-          newDate.setDate(newDate.getDate() + dayOffset);
-          newDate.setHours(0, 0, 0, 0);
+          newDate.setUTCDate(newDate.getUTCDate() + dayOffset);
+          newDate.setUTCHours(0, 0, 0, 0);
           return {
             weekScheduleId: week.id,
             userId: s.userId,
@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
       const scheduleData = employees.flatMap((emp) =>
         Array.from({ length: 7 }, (_, i) => {
           const date = new Date(start);
-          date.setDate(date.getDate() + i);
-          date.setHours(0, 0, 0, 0);
+          date.setUTCDate(date.getUTCDate() + i);
+          date.setUTCHours(0, 0, 0, 0);
           return { weekScheduleId: week.id, userId: emp.id, date };
         })
       );
