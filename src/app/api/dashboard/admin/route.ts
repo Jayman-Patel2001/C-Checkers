@@ -11,7 +11,8 @@ export async function GET() {
   }
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayStart = new Date(now);
+  todayStart.setUTCHours(0, 0, 0, 0);
 
   const [
     totalEmployees,
@@ -22,7 +23,7 @@ export async function GET() {
     pendingReviewTasks,
   ] = await Promise.all([
     prisma.user.count({ where: { role: "EMPLOYEE", isActive: true } }),
-    prisma.shift.count({ where: { endTime: null } }),
+    prisma.employeeSchedule.count({ where: { clockIn: { not: null }, clockOut: null, date: todayStart } }),
     prisma.taskEntry.count({ where: { status: "COMPLETED", review: null } }),
     prisma.taskEntry.count({
       where: {

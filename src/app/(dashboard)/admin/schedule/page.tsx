@@ -616,81 +616,90 @@ function EditCellModal({
                 </div>
               </div>
 
-              {/* Clock in/out — admin editable override */}
-              <div className="space-y-2">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-slate-500 font-medium flex items-center gap-1"><LogIn className="w-3 h-3" />Clock In Override</label>
-                    <button type="button" onClick={() => setHasCi(p => !p)} className={`text-xs px-2 py-0.5 rounded ${hasCi ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
-                      {hasCi ? "Set" : "Not set"}
-                    </button>
-                  </div>
-                  {hasCi && (
-                    <div className="flex gap-1">
-                      <select value={ciHour} onChange={e => setCiHour(e.target.value)} className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <select value={ciMin} onChange={e => setCiMin(e.target.value)} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <select value={ciAmpm} onChange={e => setCiAmpm(e.target.value as "AM" | "PM")} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        <option>AM</option><option>PM</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-slate-500 font-medium flex items-center gap-1"><LogOut className="w-3 h-3" />Clock Out Override</label>
-                    <button type="button" onClick={() => setHasCo(p => !p)} className={`text-xs px-2 py-0.5 rounded ${hasCo ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400"}`}>
-                      {hasCo ? "Set" : "Not set"}
-                    </button>
-                  </div>
-                  {hasCo && (
-                    <div className="flex gap-1">
-                      <select value={coHour} onChange={e => setCoHour(e.target.value)} className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <select value={coMin} onChange={e => setCoMin(e.target.value)} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <select value={coAmpm} onChange={e => setCoAmpm(e.target.value as "AM" | "PM")} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                        <option>AM</option><option>PM</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Wage overrides */}
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Hour Wage Overrides</p>
-                {overrides.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    {overrides.map((o) => (
-                      <div key={o.hourSlot} className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm">
-                        <span className="text-slate-700">{o.hourSlot}:00–{o.hourSlot + 1}:00</span>
-                        <span className="font-medium text-yellow-700">${o.customWage.toFixed(2)}</span>
-                        <button onClick={() => removeOverride(o.hourSlot)}><X className="w-3.5 h-3.5 text-slate-400" /></button>
+              {/* Clock in/out override & Wage overrides — only after full shift */}
+              {schedule.clockIn && schedule.clockOut ? (
+                <>
+                  {/* Clock in/out — admin editable override */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-slate-500 font-medium flex items-center gap-1"><LogIn className="w-3 h-3" />Clock In Override</label>
+                        <button type="button" onClick={() => setHasCi(p => !p)} className={`text-xs px-2 py-0.5 rounded ${hasCi ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                          {hasCi ? "Set" : "Not set"}
+                        </button>
                       </div>
-                    ))}
+                      {hasCi && (
+                        <div className="flex gap-1">
+                          <select value={ciHour} onChange={e => setCiHour(e.target.value)} className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                          <select value={ciMin} onChange={e => setCiMin(e.target.value)} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <select value={ciAmpm} onChange={e => setCiAmpm(e.target.value as "AM" | "PM")} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            <option>AM</option><option>PM</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-slate-500 font-medium flex items-center gap-1"><LogOut className="w-3 h-3" />Clock Out Override</label>
+                        <button type="button" onClick={() => setHasCo(p => !p)} className={`text-xs px-2 py-0.5 rounded ${hasCo ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400"}`}>
+                          {hasCo ? "Set" : "Not set"}
+                        </button>
+                      </div>
+                      {hasCo && (
+                        <div className="flex gap-1">
+                          <select value={coHour} onChange={e => setCoHour(e.target.value)} className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                          <select value={coMin} onChange={e => setCoMin(e.target.value)} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <select value={coAmpm} onChange={e => setCoAmpm(e.target.value as "AM" | "PM")} className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            <option>AM</option><option>PM</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-                <div className="flex gap-2">
-                  <select value={newHour} onChange={(e) => setNewHour(e.target.value)}
-                    className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
-                    <option value="">Hour</option>
-                    {hours.map((h) => (
-                      <option key={h} value={h}>{h}:00–{h + 1}:00</option>
-                    ))}
-                  </select>
-                  <input type="number" step="0.01" value={newWage} onChange={(e) => setNewWage(e.target.value)}
-                    placeholder="$wage" className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm" />
-                  <button onClick={addOverride} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600">
-                    <Plus className="w-4 h-4" />
-                  </button>
+
+                  {/* Wage overrides */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Hour Wage Overrides</p>
+                    {overrides.length > 0 && (
+                      <div className="space-y-1 mb-3">
+                        {overrides.map((o) => (
+                          <div key={o.hourSlot} className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm">
+                            <span className="text-slate-700">{o.hourSlot}:00–{o.hourSlot + 1}:00</span>
+                            <span className="font-medium text-yellow-700">${o.customWage.toFixed(2)}</span>
+                            <button onClick={() => removeOverride(o.hourSlot)}><X className="w-3.5 h-3.5 text-slate-400" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <select value={newHour} onChange={(e) => setNewHour(e.target.value)}
+                        className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                        <option value="">Hour</option>
+                        {hours.map((h) => (
+                          <option key={h} value={h}>{h}:00–{h + 1}:00</option>
+                        ))}
+                      </select>
+                      <input type="number" step="0.01" value={newWage} onChange={(e) => setNewWage(e.target.value)}
+                        placeholder="$wage" className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm" />
+                      <button onClick={addOverride} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-500">
+                  Clock override and wage adjustments available after employee completes their shift (clocks in and out).
                 </div>
-              </div>
+              )}
             </>
           )}
 
