@@ -9,19 +9,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  const records = await prisma.employeeSchedule.findMany({
-    where: { userId: params.id, clockIn: { not: null } },
-    orderBy: { date: "desc" },
-    take: 3,
-    select: {
-      id: true,
-      date: true,
-      scheduledStart: true,
-      scheduledEnd: true,
-      clockIn: true,
-      clockOut: true,
-    },
-  });
+  const [records, total] = await Promise.all([
+    prisma.employeeSchedule.findMany({
+      where: { userId: params.id, clockIn: { not: null } },
+      orderBy: { date: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        date: true,
+        scheduledStart: true,
+        scheduledEnd: true,
+        clockIn: true,
+        clockOut: true,
+      },
+    }),
+    prisma.employeeSchedule.count({
+      where: { userId: params.id, clockIn: { not: null } },
+    }),
+  ]);
 
-  return NextResponse.json({ records });
+  return NextResponse.json({ records, total });
 }

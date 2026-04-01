@@ -33,7 +33,7 @@ interface StaffMember {
   role: string;
   isActive: boolean;
   createdAt: string;
-  _count: { employeeSchedules: number; taskEntries: number };
+  _count: { scheduleEntries: number; taskEntries: number };
 }
 
 interface StaffDetail {
@@ -299,7 +299,7 @@ export default function EmployeesPage() {
                   </div>
                 </td>
                 <td className="px-5 py-4 text-center">
-                  <span className="text-sm font-medium text-slate-600">{member._count.employeeSchedules}</span>
+                  <span className="text-sm font-medium text-slate-600">{member._count.scheduleEntries}</span>
                 </td>
                 <td className="px-5 py-4 text-center">
                   <Badge variant={member.isActive ? "active" : "completed"}>
@@ -354,7 +354,7 @@ export default function EmployeesPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500 truncate">{member.email}</p>
-                <p className="text-xs text-slate-400">{member._count.employeeSchedules} clock-ins</p>
+                <p className="text-xs text-slate-400">{member._count.scheduleEntries} clock-ins</p>
               </div>
               <div className="flex items-center gap-0.5 flex-wrap justify-end flex-shrink-0 max-w-[80px]">
                 {member.role === "EMPLOYEE" && (
