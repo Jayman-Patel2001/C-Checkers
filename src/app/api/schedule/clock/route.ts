@@ -20,10 +20,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid schedule" }, { status: 404 });
   }
 
-  if (!schedule) {
-    return NextResponse.json({ error: "No schedule found for today" }, { status: 404 });
-  }
-
   if (action === "in") {
     if (schedule.clockIn) {
       return NextResponse.json({ error: "Already clocked in" }, { status: 400 });

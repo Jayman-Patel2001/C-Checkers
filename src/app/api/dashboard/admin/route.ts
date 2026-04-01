@@ -11,8 +11,17 @@ export async function GET() {
   }
 
   const now = new Date();
-  const todayStart = new Date(now);
+  const cstStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+  
+  // 1. Artificial Date for Schedule Matching (Stored as pure UTC midnights of the local day)
+  const todayStart = new Date(cstStr);
   todayStart.setUTCHours(0, 0, 0, 0);
+
+  // 2. Exact Absolute Timestamp for continuous event matching (e.g. tasks completed today)
+  // Derive the exact timezone offset without external libraries
+  const visualLocalTime = new Date(cstStr);
+  const offsetMs = now.getTime() - visualLocalTime.getTime();
+  const todayStartExact = new Date(todayStart.getTime() + offsetMs);
 
   const [
     totalEmployees,
@@ -28,7 +37,7 @@ export async function GET() {
     prisma.taskEntry.count({
       where: {
         status: "COMPLETED",
-        completedAt: { gte: todayStart },
+        completedAt: { gte: todayStartExact },
       },
     }),
     prisma.shift.findMany({
@@ -56,7 +65,7 @@ export async function GET() {
   ]);
 
   // Compute stats for each active shift
-  const shiftStats = activeShifts.map((shift) => {
+  const shiftStats = activeShifts.map((shift: any) => {
     let productiveSeconds = 0;
     let personalSeconds = 0;
     const nowMs = Date.now();
@@ -80,7 +89,7 @@ export async function GET() {
       productiveSeconds,
       personalSeconds,
       totalTasks: shift.taskEntries.length,
-      activeTask: shift.taskEntries.find((t) => t.status === "ACTIVE") || null,
+      activeTask: shift.taskEntries.find((t: any) => t.status === "ACTIVE") || null,
     };
   });
 

@@ -20,6 +20,12 @@ function calcScheduledHours(
   return Math.max(0, end - start);
 }
 
+function getLocalHourFloat(d: Date): number {
+  const timeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour12: false, hour: "numeric", minute: "numeric" });
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h === 24 ? 0 : h) + (m / 60);
+}
+
 // Actual pay from clocked hours — applies wage overrides per hour slot
 function calcClockedPay(
   clockIn: Date | null,
@@ -29,8 +35,9 @@ function calcClockedPay(
 ): { hours: number; amount: number } {
   if (!clockIn || !clockOut) return { hours: 0, amount: 0 };
 
-  const startH = clockIn.getHours() + clockIn.getMinutes() / 60;
-  const endH = clockOut.getHours() + clockOut.getMinutes() / 60;
+  const startH = getLocalHourFloat(clockIn);
+  let endH = getLocalHourFloat(clockOut);
+  if (endH < startH) endH += 24;
   if (endH <= startH) return { hours: 0, amount: 0 };
 
   const totalHours = endH - startH;
@@ -40,7 +47,7 @@ function calcClockedPay(
 
   for (let h = startSlot; h < endSlot; h++) {
     const fraction = Math.min(endH, h + 1) - Math.max(startH, h);
-    const override = wageOverrides.find((o) => o.hourSlot === h);
+    const override = wageOverrides.find((o) => o.hourSlot === (h % 24));
     amount += (override ? override.customWage : hourlyRate) * fraction;
   }
 
@@ -124,7 +131,7 @@ export async function GET(req: NextRequest, { params }: { params: { weekId: stri
   return NextResponse.json({ summaries, users });
 }
 
-// POST /api/payroll/[weekId] — mark employee as paid
+// POST /api/payroll/[weekId] — mark employee as paid, snapshot hours/amount at payment time
 export async function POST(req: NextRequest, { params }: { params: { weekId: string } }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
@@ -133,6 +140,29 @@ export async function POST(req: NextRequest, { params }: { params: { weekId: str
 
   const { userId, paidAt, notes } = await req.json();
 
+  // Calculate clocked pay at the moment of payment
+  const [schedules, payRate] = await Promise.all([
+    prisma.employeeSchedule.findMany({
+      where: { weekScheduleId: params.weekId, userId },
+      include: { wageOverrides: true },
+    }),
+    prisma.employeePayRate.findFirst({
+      where: { userId },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+  ]);
+
+  const hourlyRate = payRate?.hourlyRate ?? 0;
+  let totalHours = 0;
+  let totalAmount = 0;
+  for (const s of schedules) {
+    const { hours, amount } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
+    totalHours += hours;
+    totalAmount += amount;
+  }
+  totalHours = Math.round(totalHours * 100) / 100;
+  totalAmount = Math.round(totalAmount * 100) / 100;
+
   const summary = await prisma.weeklyPaySummary.upsert({
     where: { weekScheduleId_userId: { weekScheduleId: params.weekId, userId } },
     update: {
@@ -140,6 +170,8 @@ export async function POST(req: NextRequest, { params }: { params: { weekId: str
       paidAt: new Date(paidAt),
       paidByAdminId: session.user.id,
       notes: notes || null,
+      totalHours,
+      totalAmount,
     },
     create: {
       weekScheduleId: params.weekId,
@@ -148,6 +180,8 @@ export async function POST(req: NextRequest, { params }: { params: { weekId: str
       paidAt: new Date(paidAt),
       paidByAdminId: session.user.id,
       notes: notes || null,
+      totalHours,
+      totalAmount,
     },
     include: { user: { select: { id: true, name: true } } },
   });

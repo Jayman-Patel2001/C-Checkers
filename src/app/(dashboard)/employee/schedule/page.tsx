@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { useState } from "react";
-import { LogIn, LogOut, CheckCircle, Clock, DollarSign, Calendar } from "lucide-react";
+import { LogIn, LogOut, CheckCircle, Clock, DollarSign, Calendar, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/providers/ToastProvider";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -22,10 +22,12 @@ interface ScheduleEntry {
   id: string; date: string; scheduledStart: string | null; scheduledEnd: string | null;
   isDayOff: boolean; clockIn: string | null; clockOut: string | null;
 }
-interface PayHistory {
-  id: string; totalHours: number; totalAmount: number; isPaid: boolean;
-  paidAt: string | null; notes: string | null;
-  weekSchedule: { weekStartDate: string; weekEndDate: string };
+interface PayWeek {
+  weekId: string; weekStartDate: string; weekEndDate: string;
+  clockedHours: number; estimatedAmount: number;
+  isPaid: boolean; paidAt: string | null;
+  confirmedAmount: number | null; notes: string | null;
+  isCurrentWeek: boolean;
 }
 
 export default function EmployeeSchedulePage() {
@@ -38,7 +40,7 @@ export default function EmployeeSchedulePage() {
 
   const { data, mutate } = useSWR<{
     currentWeek: { weekStartDate: string; weekEndDate: string; employeeSchedules: ScheduleEntry[] } | null;
-    payHistory: PayHistory[];
+    payWeeks: PayWeek[];
     clockedHoursThisWeek: number;
     estimatedEarningsThisWeek: number | null;
   }>("/api/schedule/my", fetcher, { refreshInterval: 30000 });
@@ -267,35 +269,46 @@ export default function EmployeeSchedulePage() {
         </div>
       )}
 
-      {/* Payment history */}
+      {/* Week-wise pay history */}
       <div>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <DollarSign className="w-4 h-4" /> Payment History
+          <DollarSign className="w-4 h-4" /> Pay by Week
         </h2>
-        {!data?.payHistory?.length ? (
-          <div className="bg-slate-50 rounded-xl p-6 text-center text-slate-400 text-sm">No payments received yet.</div>
+        {!data?.payWeeks?.length ? (
+          <div className="bg-slate-50 rounded-xl p-6 text-center text-slate-400 text-sm">No pay data yet.</div>
         ) : (
           <div className="space-y-2">
-            {data.payHistory.map((p) => (
-              <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
+            {data.payWeeks.map((w) => (
+              <div key={w.weekId} className={`border rounded-xl p-4 flex items-center justify-between gap-3 ${
+                w.isPaid ? "bg-white border-slate-200" : "bg-amber-50 border-amber-200"
+              }`}>
                 <div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-slate-400" />
                     <span className="text-sm font-medium text-slate-700">
-                      {new Date(p.weekSchedule.weekStartDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {new Date(w.weekStartDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                       {" – "}
-                      {new Date(p.weekSchedule.weekEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {new Date(w.weekEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                     </span>
+                    {w.isCurrentWeek && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">This week</span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{p.totalHours}h worked</p>
-                  {p.notes && <p className="text-xs text-slate-400 mt-0.5">{p.notes}</p>}
+                  <p className="text-xs text-slate-400 mt-0.5">{w.clockedHours}h clocked</p>
+                  {w.notes && <p className="text-xs text-slate-400 mt-0.5">{w.notes}</p>}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-lg text-slate-800">${p.totalAmount.toFixed(2)}</p>
-                  {p.isPaid && (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
+                  <p className="font-bold text-lg text-slate-800">
+                    ${(w.isPaid && w.confirmedAmount != null ? w.confirmedAmount : w.estimatedAmount).toFixed(2)}
+                  </p>
+                  {w.isPaid ? (
+                    <p className="text-xs text-green-600 flex items-center gap-1 justify-end">
                       <CheckCircle className="w-3 h-3" />
-                      {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Paid"}
+                      {w.paidAt ? new Date(w.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Paid"}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 flex items-center gap-1 justify-end">
+                      <AlertCircle className="w-3 h-3" /> Pending
                     </p>
                   )}
                 </div>

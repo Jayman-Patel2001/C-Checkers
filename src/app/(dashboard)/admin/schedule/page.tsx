@@ -421,7 +421,7 @@ export default function SchedulePage() {
             </div>
             <div className="p-5 space-y-3">
               {!payData && <p className="text-slate-400 text-sm text-center py-4">Calculating...</p>}
-              {payData && new Date(weekData?.week.weekEndDate ?? 0) > new Date() && (
+              {payData && new Date(weekData?.week.weekEndDate ?? 0).getTime() + 6 * 3600000 > Date.now() && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
                   Week is not over yet — pay is based on clocked hours so far only.
                 </div>
