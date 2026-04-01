@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   Star,
+  DollarSign,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Modal, ConfirmModal } from "@/components/ui/Modal";
@@ -69,6 +70,7 @@ type ModalType =
   | { type: "delete"; staff: StaffMember }
   | { type: "detail"; staff: StaffMember }
   | { type: "assign"; staff: StaffMember }
+  | { type: "payrate"; staff: StaffMember }
   | null;
 
 export default function EmployeesPage() {
@@ -76,6 +78,10 @@ export default function EmployeesPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [detail, setDetail] = useState<StaffDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [clockHistory, setClockHistory] = useState<Array<{
+    id: string; date: string; scheduledStart: string | null; scheduledEnd: string | null;
+    clockIn: string | null; clockOut: string | null;
+  }>>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -95,12 +101,12 @@ export default function EmployeesPage() {
 
   const loadDetail = async (member: StaffMember) => {
     setDetailLoading(true);
-    setDetail(null);
+    setClockHistory([]);
     setModal({ type: "detail", staff: member });
     try {
-      const res = await fetch(`/api/employees/${member.id}`, { cache: "no-store" });
+      const res = await fetch(`/api/employees/${member.id}/clock-history`, { cache: "no-store" });
       const json = await res.json();
-      setDetail(json.employee);
+      setClockHistory(json.records ?? []);
     } catch {
       showError("Failed to load details");
     } finally {
@@ -308,6 +314,9 @@ export default function EmployeesPage() {
                     <button onClick={() => loadAssignments(member)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-purple-600 transition-colors" title="Assign tasks">
                       <ClipboardList className="w-4 h-4" />
                     </button>
+                    <button onClick={() => setModal({ type: "payrate", staff: member })} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-600 transition-colors" title="Set pay rate">
+                      <DollarSign className="w-4 h-4" />
+                    </button>
                     <button onClick={() => { setEditForm({ name: member.name, email: member.email, isActive: member.isActive }); setModal({ type: "edit", staff: member }); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-green-600 transition-colors" title="Edit">
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -345,7 +354,7 @@ export default function EmployeesPage() {
                 <p className="text-xs text-slate-500 truncate">{member.email}</p>
                 <p className="text-xs text-slate-400">{member._count.shifts} shifts</p>
               </div>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
+              <div className="flex items-center gap-0.5 flex-wrap justify-end flex-shrink-0 max-w-[80px]">
                 {member.role === "EMPLOYEE" && (
                   <button onClick={() => loadDetail(member)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600" title="View shifts">
                     <Clock className="w-4 h-4" />
@@ -353,6 +362,9 @@ export default function EmployeesPage() {
                 )}
                 <button onClick={() => loadAssignments(member)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-purple-600" title="Assign tasks">
                   <ClipboardList className="w-4 h-4" />
+                </button>
+                <button onClick={() => setModal({ type: "payrate", staff: member })} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-600" title="Set pay rate">
+                  <DollarSign className="w-4 h-4" />
                 </button>
                 <button onClick={() => { setEditForm({ name: member.name, email: member.email, isActive: member.isActive }); setModal({ type: "edit", staff: member }); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-green-600" title="Edit">
                   <Edit2 className="w-4 h-4" />
@@ -563,66 +575,66 @@ export default function EmployeesPage() {
 
       {/* DETAIL MODAL */}
       <Modal isOpen={modal?.type === "detail"} onClose={() => setModal(null)}
-        title={`Last 3 Shifts: ${modal?.type === "detail" ? modal.staff.name : ""}`} size="lg">
+        title={`Clock History: ${modal?.type === "detail" ? modal.staff.name : ""}`} size="lg">
         {detailLoading ? (
           <div className="flex items-center justify-center py-8"><RefreshCw className="w-5 h-5 animate-spin text-slate-400" /></div>
-        ) : detail ? (
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-            {detail.shifts.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-4">No shifts yet</p>
-            ) : (
-              detail.shifts.map((shift) => {
-                const isExpanded = expandedShifts.has(shift.id);
-                const workTime = shift.taskEntries.filter((t) => t.category === "WORK").reduce((s, t) => s + t.totalActiveTime, 0);
-                const personalTime = shift.taskEntries.filter((t) => t.category === "PERSONAL").reduce((s, t) => s + t.totalActiveTime, 0);
-                return (
-                  <div key={shift.id} className="border border-slate-100 rounded-xl overflow-hidden">
-                    <button onClick={() => { const n = new Set(expandedShifts); if (isExpanded) n.delete(shift.id); else n.add(shift.id); setExpandedShifts(n); }}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <Badge variant={shift.endTime ? "completed" : "active"}>{shift.endTime ? "Ended" : "Active"}</Badge>
-                        <span className="text-sm font-medium text-slate-700">{formatDateTime(shift.startTime)}</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span className="text-green-600">{formatDuration(workTime)} work</span>
-                        <span className="text-orange-600">{formatDuration(personalTime)} personal</span>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </div>
-                    </button>
-                    {isExpanded && shift.taskEntries.length > 0 && (
-                      <div className="border-t border-slate-100 divide-y divide-slate-50">
-                        {shift.taskEntries.map((task) => (
-                          <div key={task.id} className="flex items-center justify-between px-4 py-2.5">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={task.category === "WORK" ? "work" : "personal"}>{task.category === "WORK" ? "W" : "P"}</Badge>
-                              <span className="text-sm text-slate-700">{task.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-slate-500">{formatDuration(task.totalActiveTime)}</span>
-                              <Badge variant={task.status === "COMPLETED" ? "completed" : task.status === "ACTIVE" ? "active" : "paused"}>
-                                {task.status.toLowerCase()}
-                              </Badge>
-                              {task.review && <Badge variant={task.review.status === "APPROVED" ? "approved" : "rejected"}>{task.review.status.toLowerCase()}</Badge>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+        ) : (
+          <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+            {clockHistory.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-4">No clock-in records yet</p>
+            ) : clockHistory.map((r) => {
+              const hoursWorked = r.clockIn && r.clockOut
+                ? (new Date(r.clockOut).getTime() - new Date(r.clockIn).getTime()) / 3600000
+                : null;
+              return (
+                <div key={r.id} className="border border-slate-100 rounded-xl px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-800">
+                      {new Date(r.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                    </p>
+                    {hoursWorked != null && (
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        {hoursWorked.toFixed(2)}h
+                      </span>
                     )}
                   </div>
-                );
-              })
-            )}
-            {detail.shifts.length > 0 && (
-              <a
-                href={`/admin/shifts`}
-                className="flex items-center justify-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium py-2 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors"
-              >
-                View full shift history in Shift Reports →
+                  <div className="flex items-center gap-4 mt-1.5">
+                    {r.scheduledStart && (
+                      <span className="text-xs text-slate-400">
+                        Scheduled: {r.scheduledStart} – {r.scheduledEnd ?? ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="flex items-center gap-1 text-xs text-green-600">
+                      <LogIn className="w-3 h-3" />
+                      {r.clockIn ? new Date(r.clockIn).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-orange-500">
+                      <LogOut className="w-3 h-3" />
+                      {r.clockOut ? new Date(r.clockOut).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "Not clocked out"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {clockHistory.length > 0 && (
+              <a href="/admin/schedule"
+                className="flex items-center justify-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium py-2 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">
+                View full clock history in Work Schedule →
               </a>
             )}
           </div>
-        ) : null}
+        )}
       </Modal>
+
+      {/* PAY RATE MODAL */}
+      {modal?.type === "payrate" && (
+        <PayRateModal
+          staff={modal.staff}
+          onClose={() => setModal(null)}
+        />
+      )}
 
       {/* TASK ASSIGNMENT MODAL */}
       <Modal isOpen={modal?.type === "assign"} onClose={() => setModal(null)}
@@ -662,5 +674,75 @@ export default function EmployeesPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+function PayRateModal({ staff, onClose }: { staff: StaffMember; onClose: () => void }) {
+  const { success, error: showError } = useToast();
+  const { data } = useSWR<{ current: { hourlyRate: number } | null; rates: { id: string; hourlyRate: number; effectiveFrom: string }[] }>(
+    `/api/employees/${staff.id}/payrate`,
+    fetcher
+  );
+  const [rate, setRate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const val = parseFloat(rate);
+    if (isNaN(val) || val <= 0) { showError("Enter a valid rate"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/employees/${staff.id}/payrate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hourlyRate: val }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      success("Pay rate updated");
+      setRate("");
+      onClose();
+    } catch {
+      showError("Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Pay Rate — ${staff.name}`}>
+      <div className="space-y-4">
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-xs text-slate-500 font-medium mb-1">Current Rate</p>
+          <p className="text-2xl font-bold text-slate-800">
+            {data?.current ? `$${data.current.hourlyRate}/hr` : <span className="text-slate-400 text-base">Not set</span>}
+          </p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500">New Hourly Rate ($)</label>
+          <div className="flex gap-2 mt-1">
+            <input
+              type="number" step="0.01" min="0" value={rate} onChange={(e) => setRate(e.target.value)}
+              placeholder="e.g. 13.50"
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <button onClick={save} disabled={saving} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+              {saving ? "..." : "Save"}
+            </button>
+          </div>
+        </div>
+        {data?.rates && data.rates.length > 1 && (
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-1">Rate History</p>
+            <div className="space-y-1 max-h-36 overflow-y-auto">
+              {data.rates.slice(1).map((r) => (
+                <div key={r.id} className="flex justify-between text-xs text-slate-500 px-2 py-1 bg-slate-50 rounded-lg">
+                  <span>${r.hourlyRate}/hr</span>
+                  <span>{new Date(r.effectiveFrom).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

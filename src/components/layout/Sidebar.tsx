@@ -18,6 +18,7 @@ import {
   BarChart2,
   Menu,
   X,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ interface SidebarProps {
 const adminNav: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: <LayoutDashboard className="w-5 h-5" /> },
   { label: "Employees", href: "/admin/employees", icon: <Users className="w-5 h-5" /> },
+  { label: "Work Schedule", href: "/admin/schedule", icon: <CalendarDays className="w-5 h-5" /> },
   { label: "Task Templates", href: "/admin/tasks", icon: <ClipboardList className="w-5 h-5" /> },
   { label: "Shift Reports", href: "/admin/shifts", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Reviews", href: "/admin/reviews", icon: <Star className="w-5 h-5" /> },
@@ -44,12 +46,14 @@ const adminNav: NavItem[] = [
 
 const coAdminNav: NavItem[] = [
   { label: "My Dashboard", href: "/employee", icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: "My Schedule", href: "/employee/schedule", icon: <CalendarDays className="w-5 h-5" /> },
   { label: "Task Reviews", href: "/coadmin/reviews", icon: <Star className="w-5 h-5" /> },
   { label: "My Profile", href: "/coadmin/profile", icon: <UserCog className="w-5 h-5" /> },
 ];
 
 const employeeNav: NavItem[] = [
   { label: "My Dashboard", href: "/employee", icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: "My Schedule", href: "/employee/schedule", icon: <CalendarDays className="w-5 h-5" /> },
 ];
 
 function getRoleNav(role: string): NavItem[] {

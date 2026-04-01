@@ -17,7 +17,14 @@
       "Bash(npx tsx:*)",
       "Bash(npm list:*)",
       "Bash(node -e \":*)",
-      "Bash(node -e \"const s = require\\(''sharp''\\); console.log\\(''sharp ok''\\)\")"
+      "Bash(node -e \"const s = require\\(''sharp''\\); console.log\\(''sharp ok''\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /PID 12048 /F\")",
+      "Bash(cmd /c \"taskkill /PID 12048 /F && echo killed\")",
+      "Bash(cmd /c \"npx kill-port 3000 3001\")"
     ]
   }
 }

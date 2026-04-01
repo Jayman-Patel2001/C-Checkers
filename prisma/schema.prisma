@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Role: "ADMIN" | "EMPLOYEE"
+// Role: "ADMIN" | "EMPLOYEE" | "CO_ADMIN"
 // TaskCategory: "WORK" | "PERSONAL"
 // TaskStatus: "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED"
 // TaskEvent: "CREATED" | "STARTED" | "PAUSED" | "RESUMED" | "COMPLETED"
@@ -26,9 +26,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shifts      Shift[]
-  taskEntries TaskEntry[]
-  reviews     Review[] @relation("AdminReviews")
+  shifts           Shift[]
+  taskEntries      TaskEntry[]
+  reviews          Review[]           @relation("AdminReviews")
+  scheduleEntries  EmployeeSchedule[] @relation("ScheduleEntries")
+  payRates         EmployeePayRate[]  @relation("PayRates")
+  paySummaries     WeeklyPaySummary[] @relation("PaySummaries")
 
   @@map("users")
 }
@@ -122,4 +125,98 @@ model Review {
   reviewedAt  DateTime  @default(now())
 
   @@map("reviews")
+}
+
+// Default shop opening hours per day of week (0=Mon ... 6=Sun)
+model ShopHours {
+  id        String   @id @default(cuid())
+  dayOfWeek Int
+  openTime  String   // "06:00"
+  closeTime String   // "23:00" | "00:00" means midnight
+  updatedAt DateTime @updatedAt
+
+  @@unique([dayOfWeek])
+  @@map("shop_hours")
+}
+
+// One record per week (Mon-Sun)
+model WeekSchedule {
+  id            String   @id @default(cuid())
+  weekStartDate DateTime // Monday midnight UTC
+  weekEndDate   DateTime // Sunday midnight UTC
+  createdAt     DateTime @default(now())
+
+  employeeSchedules EmployeeSchedule[]
+  paySummaries      WeeklyPaySummary[]
+
+  @@map("week_schedules")
+}
+
+// One record per employee per day
+model EmployeeSchedule {
+  id             String       @id @default(cuid())
+  weekScheduleId String
+  weekSchedule   WeekSchedule @relation(fields: [weekScheduleId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("ScheduleEntries", fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime     // date at midnight UTC
+  scheduledStart String?      // "06:00"
+  scheduledEnd   String?      // "23:00"
+  isDayOff       Boolean      @default(false)
+  clockIn        DateTime?
+  clockOut       DateTime?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  wageOverrides WageOverride[]
+
+  @@unique([weekScheduleId, userId, date])
+  @@map("employee_schedules")
+}
+
+// Custom wage for a specific hour slot on a day
+model WageOverride {
+  id                 String           @id @default(cuid())
+  employeeScheduleId String
+  employeeSchedule   EmployeeSchedule @relation(fields: [employeeScheduleId], references: [id], onDelete: Cascade)
+  hourSlot           Int              // 0-23 (hour of day)
+  customWage         Float
+  reason             String?
+  createdAt          DateTime         @default(now())
+
+  @@unique([employeeScheduleId, hourSlot])
+  @@map("wage_overrides")
+}
+
+// Pay rate per employee (history tracked)
+model EmployeePayRate {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation("PayRates", fields: [userId], references: [id], onDelete: Cascade)
+  hourlyRate    Float
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@map("employee_pay_rates")
+}
+
+// Weekly pay summary per employee
+model WeeklyPaySummary {
+  id             String       @id @default(cuid())
+  weekScheduleId String
+  weekSchedule   WeekSchedule @relation(fields: [weekScheduleId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("PaySummaries", fields: [userId], references: [id], onDelete: Cascade)
+  totalHours     Float        @default(0)
+  totalAmount    Float        @default(0)
+  isPaid         Boolean      @default(false)
+  paidAt         DateTime?
+  paidByAdminId  String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([weekScheduleId, userId])
+  @@map("weekly_pay_summaries")
 }

@@ -80,7 +80,21 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 365 * 24 * 60 * 60, // 1 year max (short sessions handled in jwt callback)
+    maxAge: 365 * 24 * 60 * 60,
+  },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 365 * 24 * 60 * 60, // always persist the cookie; JWT callback controls actual expiry
+      },
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
