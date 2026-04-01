@@ -127,7 +127,7 @@ export default function EmployeeSchedulePage() {
           <p className="text-slate-400 text-sm">{!today || !today.scheduledStart ? "No shift scheduled today" : "You have the day off today"}</p>
         ) : !isActuallyToday ? (
           <div className="space-y-1">
-            <p className="text-xs text-slate-400">Upcoming shift — {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</p>
+            <p className="text-xs text-slate-400">Upcoming shift — {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}</p>
             <p className="font-mono font-bold text-lg">
               {formatTime12(today.scheduledStart ?? "")} – {formatTime12(today.scheduledEnd ?? "")}
             </p>
