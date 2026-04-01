@@ -78,6 +78,16 @@ export default function EmployeeSchedulePage() {
   const today = data?.todaySchedule;
   const week = data?.currentWeek;
 
+  // Check if the API's "today" schedule actually matches the user's local date
+  const isActuallyToday = (() => {
+    if (!today) return false;
+    const schedDate = new Date(today.date);
+    const now = new Date();
+    return schedDate.getUTCFullYear() === now.getFullYear()
+      && schedDate.getUTCMonth() === now.getMonth()
+      && schedDate.getUTCDate() === now.getDate();
+  })();
+
   const weekDays = week
     ? Array.from({ length: 7 }, (_, i) => {
         const d = new Date(week.weekStartDate);
@@ -115,6 +125,14 @@ export default function EmployeeSchedulePage() {
         </div>
         {!today || today.isDayOff || !today.scheduledStart ? (
           <p className="text-slate-400 text-sm">{!today || !today.scheduledStart ? "No shift scheduled today" : "You have the day off today"}</p>
+        ) : !isActuallyToday ? (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-400">Upcoming shift — {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</p>
+            <p className="font-mono font-bold text-lg">
+              {formatTime12(today.scheduledStart ?? "")} – {formatTime12(today.scheduledEnd ?? "")}
+            </p>
+            <p className="text-xs text-slate-500">Clock-in will be available on the scheduled day.</p>
+          </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-4">
