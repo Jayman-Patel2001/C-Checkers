@@ -18,6 +18,8 @@ import {
   EyeOff,
   Star,
   DollarSign,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Modal, ConfirmModal } from "@/components/ui/Modal";
