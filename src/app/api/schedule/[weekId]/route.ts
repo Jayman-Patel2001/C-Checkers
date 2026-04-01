@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { weekId: stri
   if (!week) return NextResponse.json({ error: "Week not found" }, { status: 404 });
 
   // Attach current pay rate to each unique user
-  const userIds = [...new Set(week.employeeSchedules.map((s) => s.userId))];
+  const userIds = Array.from(new Set(week.employeeSchedules.map((s) => s.userId)));
   const payRates = await prisma.employeePayRate.findMany({
     where: { userId: { in: userIds } },
     orderBy: { effectiveFrom: "desc" },
