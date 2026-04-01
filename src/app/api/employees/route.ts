@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       createdAt: true,
       _count: {
         select: {
-          shifts: true,
+          employeeSchedules: { where: { clockIn: { not: null } } },
           taskEntries: true,
         },
       },

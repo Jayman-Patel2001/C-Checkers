@@ -33,7 +33,7 @@ interface StaffMember {
   role: string;
   isActive: boolean;
   createdAt: string;
-  _count: { shifts: number; taskEntries: number };
+  _count: { employeeSchedules: number; taskEntries: number };
 }
 
 interface StaffDetail {
@@ -275,7 +275,7 @@ export default function EmployeesPage() {
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
               <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
-              <th className="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Shifts</th>
+              <th className="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Clock-ins</th>
               <th className="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
               <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
             </tr>
@@ -299,7 +299,7 @@ export default function EmployeesPage() {
                   </div>
                 </td>
                 <td className="px-5 py-4 text-center">
-                  <span className="text-sm font-medium text-slate-600">{member._count.shifts}</span>
+                  <span className="text-sm font-medium text-slate-600">{member._count.employeeSchedules}</span>
                 </td>
                 <td className="px-5 py-4 text-center">
                   <Badge variant={member.isActive ? "active" : "completed"}>
@@ -354,7 +354,7 @@ export default function EmployeesPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500 truncate">{member.email}</p>
-                <p className="text-xs text-slate-400">{member._count.shifts} shifts</p>
+                <p className="text-xs text-slate-400">{member._count.employeeSchedules} clock-ins</p>
               </div>
               <div className="flex items-center gap-0.5 flex-wrap justify-end flex-shrink-0 max-w-[80px]">
                 {member.role === "EMPLOYEE" && (
