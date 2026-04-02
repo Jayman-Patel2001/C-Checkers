@@ -110,10 +110,10 @@ export default function SchedulePage() {
   const [payingUserId, setPayingUserId] = useState<string | null>(null);
   const [payNote, setPayNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [collapsedEmps, setCollapsedEmps] = useState<Set<string>>(new Set());
+  const [expandedEmps, setExpandedEmps] = useState<Set<string>>(new Set());
 
   function toggleEmp(id: string) {
-    setCollapsedEmps(prev => {
+    setExpandedEmps(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -356,7 +356,7 @@ export default function SchedulePage() {
           )}
           {employees.map((emp) => {
             const rate = weekData.currentRates[emp.id];
-            const isCollapsed = collapsedEmps.has(emp.id);
+            const isCollapsed = !expandedEmps.has(emp.id);
             const todayDow = (new Date().getDay() + 6) % 7;
             const empWeekHours = Object.values(scheduleMap[emp.id] ?? {}).reduce((total, s) => {
               if (s.isDayOff || !s.scheduledStart || !s.scheduledEnd) return total;
