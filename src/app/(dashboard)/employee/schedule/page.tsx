@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { useState } from "react";
-import { LogIn, LogOut, CheckCircle, Clock, DollarSign, Calendar, AlertCircle } from "lucide-react";
+import { LogIn, LogOut, CheckCircle, Clock, DollarSign, Calendar, AlertCircle, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/providers/ToastProvider";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -22,12 +22,17 @@ interface ScheduleEntry {
   id: string; date: string; scheduledStart: string | null; scheduledEnd: string | null;
   isDayOff: boolean; clockIn: string | null; clockOut: string | null;
 }
+interface UpcomingWeek {
+  id: string; weekStartDate: string; weekEndDate: string;
+  employeeSchedules: ScheduleEntry[];
+}
 interface PayWeek {
   weekId: string; weekStartDate: string; weekEndDate: string;
   clockedHours: number; estimatedAmount: number;
   isPaid: boolean; paidAt: string | null;
   confirmedAmount: number | null; notes: string | null;
   isCurrentWeek: boolean;
+  additionalHours: number; additionalAmount: number;
 }
 
 export default function EmployeeSchedulePage() {
@@ -36,10 +41,12 @@ export default function EmployeeSchedulePage() {
   const [showPreset, setShowPreset] = useState(false);
   const [presetHour, setPresetHour] = useState("5");
   const [presetMin, setPresetMin] = useState("00");
+  const [expandedUpcoming, setExpandedUpcoming] = useState<Set<string>>(new Set());
   const [presetAmpm, setPresetAmpm] = useState<"AM" | "PM">("PM");
 
   const { data, mutate } = useSWR<{
     currentWeek: { weekStartDate: string; weekEndDate: string; employeeSchedules: ScheduleEntry[] } | null;
+    upcomingWeeks: UpcomingWeek[];
     payWeeks: PayWeek[];
     clockedHoursThisWeek: number;
     estimatedEarningsThisWeek: number | null;
@@ -269,6 +276,87 @@ export default function EmployeeSchedulePage() {
         </div>
       )}
 
+      {/* Upcoming weeks */}
+      {(data?.upcomingWeeks?.length ?? 0) > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Calendar className="w-4 h-4" /> Upcoming Schedule
+          </h2>
+          <div className="space-y-4">
+            {data!.upcomingWeeks.map((uw) => {
+              const weekDaysU = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(uw.weekStartDate);
+                d.setUTCDate(d.getUTCDate() + i);
+                return d;
+              });
+              const totalShiftHours = uw.employeeSchedules.reduce((sum, s) => {
+                if (s.isDayOff || !s.scheduledStart || !s.scheduledEnd) return sum;
+                const sh = parseInt(s.scheduledStart.split(":")[0]);
+                const eh = s.scheduledEnd === "00:00" ? 24 : parseInt(s.scheduledEnd.split(":")[0]);
+                return sum + Math.max(0, eh - sh);
+              }, 0);
+              const isExpanded = expandedUpcoming.has(uw.id);
+              return (
+                <div key={uw.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                  <button
+                    onClick={() => setExpandedUpcoming(prev => {
+                      const next = new Set(prev);
+                      next.has(uw.id) ? next.delete(uw.id) : next.add(uw.id);
+                      return next;
+                    })}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+                  >
+                    <p className="text-sm font-semibold text-slate-700">
+                      {new Date(uw.weekStartDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {" – "}
+                      {new Date(uw.weekEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {totalShiftHours > 0 && (
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{totalShiftHours}h</span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+                  {isExpanded && <div className="p-3 border-t border-slate-100">
+                    <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+                      {Array.from({ length: 7 }, (_, i) => {
+                        const target = weekDaysU[i];
+                        const s = uw.employeeSchedules.find((e) => {
+                          const sd = new Date(e.date);
+                          return sd.getUTCDate() === target.getUTCDate() && sd.getUTCMonth() === target.getUTCMonth();
+                        });
+                        return (
+                          <div key={i} className={`rounded-lg p-1.5 text-center text-[10px] sm:text-xs ${
+                            s?.isDayOff ? "bg-slate-100 text-slate-400" :
+                            s?.scheduledStart ? "bg-blue-50 border border-blue-200 text-slate-700" :
+                            "bg-slate-50 text-slate-300"
+                          }`}>
+                            <div className="font-semibold mb-1">{DAYS[i]}</div>
+                            <div className="text-slate-400 text-[10px]">{target.getUTCDate()}</div>
+                            {s?.isDayOff ? (
+                              <div className="mt-1 font-medium">OFF</div>
+                            ) : s?.scheduledStart ? (
+                              <div className="mt-1 leading-tight">
+                                <div>{formatTime12(s.scheduledStart)}</div>
+                                <div className="text-slate-300">–</div>
+                                <div>{formatTime12(s.scheduledEnd ?? "")}</div>
+                              </div>
+                            ) : (
+                              <div className="mt-1">—</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Week-wise pay history */}
       <div>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -278,42 +366,67 @@ export default function EmployeeSchedulePage() {
           <div className="bg-slate-50 rounded-xl p-6 text-center text-slate-400 text-sm">No pay data yet.</div>
         ) : (
           <div className="space-y-2">
-            {data.payWeeks.map((w) => (
-              <div key={w.weekId} className={`border rounded-xl p-4 flex items-center justify-between gap-3 ${
-                w.isPaid ? "bg-white border-slate-200" : "bg-amber-50 border-amber-200"
-              }`}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700">
-                      {new Date(w.weekStartDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
-                      {" – "}
-                      {new Date(w.weekEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
-                    </span>
-                    {w.isCurrentWeek && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">This week</span>
-                    )}
+            {data.payWeeks.map((w) => {
+              const hasUnpaid = w.isPaid && w.additionalAmount > 0.01;
+              // Fully paid only when admin has paid and no extra hours remain
+              const fullyPaid = w.isPaid && !hasUnpaid;
+              return (
+                <div key={w.weekId} className={`border rounded-xl p-4 ${
+                  fullyPaid ? "bg-white border-slate-200" : "bg-amber-50 border-amber-200"
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-slate-400" />
+                        <span className="text-sm font-medium text-slate-700">
+                          {new Date(w.weekStartDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                          {" – "}
+                          {new Date(w.weekEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                        </span>
+                        {w.isCurrentWeek && (
+                          <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">This week</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{w.clockedHours}h clocked</p>
+                      {w.notes && <p className="text-xs text-slate-400 mt-0.5">{w.notes}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {hasUnpaid ? (
+                        <>
+                          <p className="font-bold text-lg text-slate-800">${w.confirmedAmount != null ? w.confirmedAmount.toFixed(2) : w.estimatedAmount.toFixed(2)}</p>
+                          <p className="text-xs text-green-600 flex items-center gap-1 justify-end">
+                            <CheckCircle className="w-3 h-3" />
+                            {w.paidAt ? new Date(w.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Paid"}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-bold text-lg text-slate-800">
+                            ${(fullyPaid && w.confirmedAmount != null ? w.confirmedAmount : w.estimatedAmount).toFixed(2)}
+                          </p>
+                          {fullyPaid ? (
+                            <p className="text-xs text-green-600 flex items-center gap-1 justify-end">
+                              <CheckCircle className="w-3 h-3" />
+                              {w.paidAt ? new Date(w.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Paid"}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-600 flex items-center gap-1 justify-end">
+                              <AlertCircle className="w-3 h-3" /> Pending
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{w.clockedHours}h clocked</p>
-                  {w.notes && <p className="text-xs text-slate-400 mt-0.5">{w.notes}</p>}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-lg text-slate-800">
-                    ${(w.isPaid && w.confirmedAmount != null ? w.confirmedAmount : w.estimatedAmount).toFixed(2)}
-                  </p>
-                  {w.isPaid ? (
-                    <p className="text-xs text-green-600 flex items-center gap-1 justify-end">
-                      <CheckCircle className="w-3 h-3" />
-                      {w.paidAt ? new Date(w.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Paid"}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-amber-600 flex items-center gap-1 justify-end">
-                      <AlertCircle className="w-3 h-3" /> Pending
-                    </p>
+                  {hasUnpaid && (
+                    <div className="mt-2 pt-2 border-t border-amber-200 flex items-center justify-between">
+                      <p className="text-xs text-amber-700">+{w.additionalHours}h after payment — pending</p>
+                      <p className="text-xs font-semibold text-amber-700">+${w.additionalAmount.toFixed(2)}</p>
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

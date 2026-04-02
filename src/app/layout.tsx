@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
+import { SWRProvider } from "@/components/providers/SWRProvider";
 
 export const metadata: Metadata = {
   title: "C Checkers Productivity Tracker",
@@ -33,9 +34,11 @@ export default function RootLayout({
       </head>
       <body>
         <SessionProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
+          <SWRProvider>
+            <ToastProvider>
+              {children}
+            </ToastProvider>
+          </SWRProvider>
         </SessionProvider>
         <script
           dangerouslySetInnerHTML={{

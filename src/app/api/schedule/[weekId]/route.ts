@@ -89,6 +89,19 @@ export async function GET(req: NextRequest, { params }: { params: { weekId: stri
   return NextResponse.json({ week, currentRates });
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: { weekId: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
+  const { visibleToEmployees } = await req.json();
+  const week = await prisma.weekSchedule.update({
+    where: { id: params.weekId },
+    data: { visibleToEmployees },
+  });
+  return NextResponse.json({ week });
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: { weekId: string } }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {

@@ -141,10 +141,11 @@ model ShopHours {
 
 // One record per week (Mon-Sun)
 model WeekSchedule {
-  id            String   @id @default(cuid())
-  weekStartDate DateTime // Monday midnight UTC
-  weekEndDate   DateTime // Sunday midnight UTC
-  createdAt     DateTime @default(now())
+  id                 String   @id @default(cuid())
+  weekStartDate      DateTime // Monday midnight UTC
+  weekEndDate        DateTime // Sunday midnight UTC
+  visibleToEmployees Boolean  @default(true)
+  createdAt          DateTime @default(now())
 
   employeeSchedules EmployeeSchedule[]
   paySummaries      WeeklyPaySummary[]

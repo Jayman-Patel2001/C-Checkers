@@ -95,6 +95,7 @@ export async function GET() {
       let clockedHours = 0;
       let amount = 0;
       for (const s of schedules) {
+        if (s.isDayOff) continue;
         const { hours, amount: a } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
         clockedHours += hours;
         amount += a;

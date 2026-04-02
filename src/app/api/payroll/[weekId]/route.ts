@@ -83,20 +83,55 @@ export async function GET(req: NextRequest, { params }: { params: { weekId: stri
   }
 
   const userIds = Object.keys(byUser);
-  const payRates = await prisma.employeePayRate.findMany({
-    where: { userId: { in: userIds } },
-    orderBy: { effectiveFrom: "desc" },
-  });
+
+  // Fetch all supporting data in parallel — no sequential waterfalls
+  const [payRates, users, existingRecords] = await Promise.all([
+    prisma.employeePayRate.findMany({
+      where: { userId: { in: userIds } },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true },
+    }),
+    prisma.weeklyPaySummary.findMany({
+      where: { weekScheduleId: params.weekId, userId: { in: userIds } },
+      include: { user: { select: { id: true, name: true } } },
+    }),
+  ]);
 
   const currentRates: Record<string, number> = {};
   for (const rate of payRates) {
     if (!currentRates[rate.userId]) currentRates[rate.userId] = rate.hourlyRate;
   }
+  const existingMap = new Map(existingRecords.map((r) => [r.userId, r]));
 
-  const users = await prisma.user.findMany({
-    where: { id: { in: userIds } },
-    select: { id: true, name: true },
-  });
+  // Upsert only the unpaid summaries — all in parallel
+  const upsertResults = await Promise.all(
+    userIds
+      .filter((userId) => !existingMap.get(userId)?.isPaid)
+      .map((userId) => {
+        const schedules = byUser[userId];
+        const hourlyRate = currentRates[userId] ?? 0;
+        let totalHours = 0;
+        let totalAmount = 0;
+        for (const s of schedules) {
+          if (s.isDayOff) continue;
+          const { hours, amount } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
+          totalHours += hours;
+          totalAmount += amount;
+        }
+        totalHours = Math.round(totalHours * 100) / 100;
+        totalAmount = Math.round(totalAmount * 100) / 100;
+        return prisma.weeklyPaySummary.upsert({
+          where: { weekScheduleId_userId: { weekScheduleId: params.weekId, userId } },
+          update: { totalHours, totalAmount },
+          create: { weekScheduleId: params.weekId, userId, totalHours, totalAmount },
+          include: { user: { select: { id: true, name: true } } },
+        }).then((r) => ({ userId, record: r, totalHours, totalAmount }));
+      })
+  );
+  const upsertMap = new Map(upsertResults.map((r) => [r.userId, r]));
 
   const summaries = [];
   for (const userId of userIds) {
@@ -108,24 +143,22 @@ export async function GET(req: NextRequest, { params }: { params: { weekId: stri
 
     for (const s of schedules) {
       scheduledHours += calcScheduledHours(s.scheduledStart, s.scheduledEnd, s.isDayOff);
-      const { hours, amount } = calcClockedPay(
-        s.clockIn,
-        s.clockOut,
-        s.wageOverrides,
-        hourlyRate
-      );
+      if (s.isDayOff) continue;
+      const { hours, amount } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
       totalHours += hours;
       totalAmount += amount;
     }
 
-    const existing = await prisma.weeklyPaySummary.upsert({
-      where: { weekScheduleId_userId: { weekScheduleId: params.weekId, userId } },
-      update: { totalHours, totalAmount },
-      create: { weekScheduleId: params.weekId, userId, totalHours, totalAmount },
-      include: { user: { select: { id: true, name: true } } },
-    });
+    const existingRecord = existingMap.get(userId);
+    const upserted = upsertMap.get(userId);
+    const record = existingRecord?.isPaid ? existingRecord : upserted?.record;
 
-    summaries.push({ ...existing, hourlyRate, scheduledHours });
+    const snappedHours = existingRecord?.isPaid ? (existingRecord.totalHours ?? 0) : 0;
+    const snappedAmount = existingRecord?.isPaid ? (existingRecord.totalAmount ?? 0) : 0;
+    const additionalHours = existingRecord?.isPaid ? Math.max(0, Math.round((totalHours - snappedHours) * 100) / 100) : 0;
+    const additionalAmount = existingRecord?.isPaid ? Math.max(0, Math.round((totalAmount - snappedAmount) * 100) / 100) : 0;
+
+    summaries.push({ ...record, hourlyRate, scheduledHours, additionalHours, additionalAmount });
   }
 
   return NextResponse.json({ summaries, users });
@@ -156,6 +189,7 @@ export async function POST(req: NextRequest, { params }: { params: { weekId: str
   let totalHours = 0;
   let totalAmount = 0;
   for (const s of schedules) {
+    if (s.isDayOff) continue;
     const { hours, amount } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
     totalHours += hours;
     totalAmount += amount;

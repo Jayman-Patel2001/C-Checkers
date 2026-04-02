@@ -55,8 +55,13 @@ export default function PayrollPage() {
   }
 
   const weeks = data?.weeks ?? [];
-  const totalPending = weeks.reduce((s, w) => s + w.employees.filter((e) => !e.isPaid).reduce((a, e) => a + e.amount, 0), 0);
-  const totalPaid = weeks.reduce((s, w) => s + w.employees.filter((e) => e.isPaid).reduce((a, e) => a + e.amount, 0), 0);
+  const totalPending = weeks.reduce((s, w) => s + w.employees.reduce((a, e) => {
+    if (!e.isPaid) return a + e.amount;
+    // Partially paid: additional hours worked after payment count as pending
+    if (e.paidAmount != null && e.amount > e.paidAmount + 0.01) return a + (e.amount - e.paidAmount);
+    return a;
+  }, 0), 0);
+  const totalPaid = weeks.reduce((s, w) => s + w.employees.filter((e) => e.isPaid).reduce((a, e) => a + (e.paidAmount ?? e.amount), 0), 0);
 
   return (
     <div className="space-y-5">
@@ -95,8 +100,12 @@ export default function PayrollPage() {
       <div className="space-y-3">
         {weeks.map((week) => {
           const isCollapsed = collapsed.has(week.weekId);
-          const weekPending = week.employees.filter((e) => !e.isPaid).reduce((a, e) => a + e.amount, 0);
-          const allPaid = week.employees.every((e) => e.isPaid);
+          const weekPending = week.employees.reduce((a, e) => {
+            if (!e.isPaid) return a + e.amount;
+            if (e.paidAmount != null && e.amount > e.paidAmount + 0.01) return a + (e.amount - e.paidAmount);
+            return a;
+          }, 0);
+          const allPaid = week.employees.every((e) => e.isPaid && (e.paidAmount == null || e.amount <= e.paidAmount + 0.01));
           const isCurrentWeek = week.isCurrentWeek;
 
           return (
@@ -180,7 +189,7 @@ export default function PayrollPage() {
                               <div className="flex gap-2">
                                 <button onClick={() => markPaid(week.weekId, emp.userId)} disabled={saving}
                                   className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50">
-                                  Confirm — Pay ${emp.amount.toFixed(2)}
+                                  Confirm — Pay ${(emp.isPaid && emp.paidAmount != null ? emp.amount - emp.paidAmount : emp.amount).toFixed(2)}
                                 </button>
                                 <button onClick={() => { setPaying(null); setPayNote(""); }}
                                   className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">

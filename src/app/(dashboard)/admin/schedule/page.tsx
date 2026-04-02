@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Settings, DollarSign,
-  Clock, CheckCircle, X, Edit2, LogIn, LogOut
+  Clock, CheckCircle, X, Edit2, LogIn, LogOut, Eye, EyeOff
 } from "lucide-react";
 import { useToast } from "@/components/providers/ToastProvider";
 
@@ -90,13 +90,14 @@ interface EmployeeSchedule {
 }
 interface WeekData {
   id: string; weekStartDate: string; weekEndDate: string;
+  visibleToEmployees: boolean;
   employeeSchedules: EmployeeSchedule[];
   paySummaries: { userId: string; totalHours: number; totalAmount: number; isPaid: boolean; paidAt: string | null; notes: string | null; user: { id: string; name: string } }[];
 }
 interface PaySummary {
   id: string; userId: string; totalHours: number; totalAmount: number;
   isPaid: boolean; paidAt: string | null; notes: string | null; hourlyRate: number;
-  scheduledHours: number;
+  scheduledHours: number; additionalHours: number; additionalAmount: number;
   user: { id: string; name: string };
 }
 
@@ -125,7 +126,7 @@ export default function SchedulePage() {
 
   const weekKey = toLocalDateStr(currentMonday);
 
-  const { data: weeksData, mutate: mutateWeeks } = useSWR<{ weeks: { id: string; weekStartDate: string }[] }>("/api/schedule", fetcher);
+  const { data: weeksData, mutate: mutateWeeks } = useSWR<{ weeks: { id: string; weekStartDate: string; visibleToEmployees: boolean }[] }>("/api/schedule", fetcher);
   const { data: shopData, mutate: mutateShop } = useSWR<{ hours: ShopHour[] }>("/api/schedule/shop-hours", fetcher);
 
   const currentWeek = weeksData?.weeks.find((w) => w.weekStartDate.startsWith(weekKey));
@@ -164,6 +165,18 @@ export default function SchedulePage() {
       }
     }
     return list;
+  }, [weekData]);
+
+  const totalWeeklyScheduledHours = useMemo(() => {
+    if (!weekData?.week) return 0;
+    let total = 0;
+    for (const s of weekData.week.employeeSchedules) {
+      if (s.isDayOff || !s.scheduledStart || !s.scheduledEnd) continue;
+      const sh = parseInt(s.scheduledStart.split(":")[0]);
+      const eh = s.scheduledEnd === "00:00" ? 24 : parseInt(s.scheduledEnd.split(":")[0]);
+      total += Math.max(0, eh - sh);
+    }
+    return total;
   }, [weekData]);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -234,6 +247,26 @@ export default function SchedulePage() {
     }
   }
 
+  async function toggleVisibility() {
+    if (!currentWeek || !weekData) return;
+    const next = !weekData.week.visibleToEmployees;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/schedule/${currentWeek.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibleToEmployees: next }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      success(next ? "Schedule visible to employees" : "Schedule hidden from employees");
+      await Promise.all([mutateWeek(), mutateWeeks()]);
+    } catch {
+      showError("Failed to update visibility");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function updateShopHours(dayOfWeek: number, openTime: string, closeTime: string) {
     await fetch("/api/schedule/shop-hours", {
       method: "PATCH",
@@ -251,12 +284,27 @@ export default function SchedulePage() {
           <h1 className="text-2xl font-bold text-slate-800">Work Schedule</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             {formatDateShort(currentMonday)} – {formatDateShort(weekDays[6])}
+            {currentWeek && totalWeeklyScheduledHours > 0 && (
+              <span className="ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                {totalWeeklyScheduledHours}h combined
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setShopHoursModal(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">
             <Settings className="w-4 h-4" /> Shop Hours
           </button>
+          {currentWeek && weekData && (
+            <button onClick={toggleVisibility} disabled={saving} className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors disabled:opacity-50 ${
+              weekData.week.visibleToEmployees
+                ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}>
+              {weekData.week.visibleToEmployees ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {weekData.week.visibleToEmployees ? "Visible" : "Hidden"}
+            </button>
+          )}
           {currentWeek && (
             <button onClick={() => setPayModal(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
               <DollarSign className="w-4 h-4" /> Pay Summary
@@ -310,6 +358,12 @@ export default function SchedulePage() {
             const rate = weekData.currentRates[emp.id];
             const isCollapsed = collapsedEmps.has(emp.id);
             const todayDow = (new Date().getDay() + 6) % 7;
+            const empWeekHours = Object.values(scheduleMap[emp.id] ?? {}).reduce((total, s) => {
+              if (s.isDayOff || !s.scheduledStart || !s.scheduledEnd) return total;
+              const sh = parseInt(s.scheduledStart.split(":")[0]);
+              const eh = s.scheduledEnd === "00:00" ? 24 : parseInt(s.scheduledEnd.split(":")[0]);
+              return total + Math.max(0, eh - sh);
+            }, 0);
             return (
               <div key={emp.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                 {/* Employee header */}
@@ -320,11 +374,16 @@ export default function SchedulePage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="min-w-0 text-left">
                       <p className="font-semibold text-slate-800 text-sm truncate">{emp.name}</p>
-                      {rate ? (
-                        <p className="text-xs text-slate-400">${rate}/hr</p>
-                      ) : (
-                        <p className="text-xs text-red-400">No rate set</p>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {rate ? (
+                          <p className="text-xs text-slate-400">${rate}/hr</p>
+                        ) : (
+                          <p className="text-xs text-red-400">No rate set</p>
+                        )}
+                        {empWeekHours > 0 && (
+                          <p className="text-xs text-slate-400">{empWeekHours}h this week</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
@@ -426,48 +485,57 @@ export default function SchedulePage() {
                   Week is not over yet — pay is based on clocked hours so far only.
                 </div>
               )}
-              {payData?.summaries.map((s) => (
-                <div key={s.userId} className="border border-slate-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-slate-800">{s.user.name}</p>
-                      <p className="text-xs text-slate-400">{s.totalHours}h clocked × ${s.hourlyRate}/hr</p>
-                      {s.scheduledHours !== s.totalHours && (
-                        <p className="text-xs text-slate-300">{s.scheduledHours}h scheduled</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg text-slate-800">${s.totalAmount.toFixed(2)}</p>
-                      {s.isPaid && <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3 h-3" />Paid {s.paidAt ? new Date(s.paidAt).toLocaleDateString() : ""}</p>}
-                    </div>
-                  </div>
-                  {!s.isPaid && (
-                    payingUserId === s.userId ? (
-                      <div className="space-y-2 mt-2">
-                        <input
-                          value={payNote}
-                          onChange={(e) => setPayNote(e.target.value)}
-                          placeholder="Note (optional)"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-                        />
-                        <div className="flex gap-2">
-                          <button onClick={() => markPaid(s.userId)} disabled={saving}
-                            className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50">
-                            Confirm Paid
-                          </button>
-                          <button onClick={() => setPayingUserId(null)} className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">Cancel</button>
-                        </div>
+              {payData?.summaries.map((s) => {
+                const hasAdditional = s.isPaid && s.additionalAmount > 0;
+                const showPayBtn = !s.isPaid || hasAdditional;
+                return (
+                  <div key={s.userId} className="border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-slate-800">{s.user.name}</p>
+                        <p className="text-xs text-slate-400">{s.totalHours}h clocked × ${s.hourlyRate}/hr</p>
+                        {s.scheduledHours !== s.totalHours && (
+                          <p className="text-xs text-slate-300">{s.scheduledHours}h scheduled</p>
+                        )}
                       </div>
-                    ) : (
-                      <button onClick={() => setPayingUserId(s.userId)}
-                        className="w-full mt-1 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">
-                        Mark as Paid
-                      </button>
-                    )
-                  )}
-                  {s.notes && <p className="text-xs text-slate-500 mt-1">Note: {s.notes}</p>}
-                </div>
-              ))}
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-slate-800">${s.totalAmount.toFixed(2)}</p>
+                        {s.isPaid && <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3 h-3" />Paid {s.paidAt ? new Date(s.paidAt).toLocaleDateString() : ""}</p>}
+                      </div>
+                    </div>
+                    {hasAdditional && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 mb-2">
+                        +{s.additionalHours}h worked after payment — ${s.additionalAmount.toFixed(2)} unpaid
+                      </div>
+                    )}
+                    {showPayBtn && (
+                      payingUserId === s.userId ? (
+                        <div className="space-y-2 mt-2">
+                          <input
+                            value={payNote}
+                            onChange={(e) => setPayNote(e.target.value)}
+                            placeholder="Note (optional)"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={() => markPaid(s.userId)} disabled={saving}
+                              className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50">
+                              Confirm — Pay ${hasAdditional ? s.additionalAmount.toFixed(2) : s.totalAmount.toFixed(2)}
+                            </button>
+                            <button onClick={() => setPayingUserId(null)} className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setPayingUserId(s.userId)}
+                          className="w-full mt-1 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">
+                          {hasAdditional ? "Pay Remaining Hours" : "Mark as Paid"}
+                        </button>
+                      )
+                    )}
+                    {s.notes && <p className="text-xs text-slate-500 mt-1">Note: {s.notes}</p>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -547,8 +615,9 @@ function EditCellModal({
       isDayOff,
       notes: notes || null,
       wageOverrides: overrides,
-      clockIn: hasCi ? buildClockTime(ciHour, ciMin, ciAmpm) : null,
-      clockOut: hasCo ? buildClockTime(coHour, coMin, coAmpm) : null,
+      // Day-off cannot have clock times — always clear them to avoid rounding drift against payment snapshots
+      clockIn: isDayOff ? null : (hasCi ? buildClockTime(ciHour, ciMin, ciAmpm) : null),
+      clockOut: isDayOff ? null : (hasCo ? buildClockTime(coHour, coMin, coAmpm) : null),
     });
   }
 

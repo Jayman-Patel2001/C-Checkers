@@ -56,41 +56,62 @@ export async function GET() {
   weekStart.setUTCDate(today.getUTCDate() + diff);
   weekStart.setUTCHours(0, 0, 0, 0);
 
-  const currentWeek = await prisma.weekSchedule.findFirst({
-    where: {
-      weekStartDate: { lte: today },
-      weekEndDate: { gte: weekStart },
-    },
-    include: {
-      employeeSchedules: {
-        where: { userId: session.user.id },
-        orderBy: { date: "asc" },
-        include: { wageOverrides: true },
+  const [currentWeek, upcomingWeeks, allWeeks, latestRate] = await Promise.all([
+    prisma.weekSchedule.findFirst({
+      where: {
+        weekStartDate: { lte: today },
+        weekEndDate: { gte: weekStart },
       },
-    },
-    orderBy: { weekStartDate: "desc" },
-  });
-
-  // All weeks for pay history
-  const allWeeks = await prisma.weekSchedule.findMany({
-    where: { weekEndDate: { gte: twoMonthsAgo } },
-    orderBy: { weekStartDate: "desc" },
-    include: {
-      employeeSchedules: {
-        where: { userId: session.user.id },
-        include: { wageOverrides: true },
+      include: {
+        employeeSchedules: {
+          where: { userId: session.user.id },
+          orderBy: { date: "asc" },
+          include: { wageOverrides: true },
+        },
       },
-      paySummaries: {
-        where: { userId: session.user.id },
+      orderBy: { weekStartDate: "desc" },
+    }),
+    // Upcoming weeks where this employee has at least one real shift assigned
+    prisma.weekSchedule.findMany({
+      where: {
+        weekStartDate: { gt: weekStart },
+        visibleToEmployees: true,
+        employeeSchedules: {
+          some: {
+            userId: session.user.id,
+            isDayOff: false,
+            scheduledStart: { not: null },
+          },
+        },
       },
-    },
-  });
-
-  // Get current pay rate
-  const latestRate = await prisma.employeePayRate.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { effectiveFrom: "desc" },
-  });
+      orderBy: { weekStartDate: "asc" },
+      include: {
+        employeeSchedules: {
+          where: { userId: session.user.id },
+          orderBy: { date: "asc" },
+        },
+      },
+    }),
+    // All weeks for pay history
+    prisma.weekSchedule.findMany({
+      where: { weekEndDate: { gte: twoMonthsAgo } },
+      orderBy: { weekStartDate: "desc" },
+      include: {
+        employeeSchedules: {
+          where: { userId: session.user.id },
+          include: { wageOverrides: true },
+        },
+        paySummaries: {
+          where: { userId: session.user.id },
+        },
+      },
+    }),
+    // Current pay rate
+    prisma.employeePayRate.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+  ]);
   const hourlyRate = latestRate?.hourlyRate ?? 0;
 
   let clockedHoursThisWeek = 0;
@@ -100,6 +121,7 @@ export async function GET() {
     let clockedHours = 0;
     let estimatedAmount = 0;
     for (const s of week.employeeSchedules) {
+      if (s.isDayOff) continue;
       const { hours, amount } = calcClockedPay(s.clockIn, s.clockOut, s.wageOverrides, hourlyRate);
       clockedHours += hours;
       estimatedAmount += amount;
@@ -115,6 +137,16 @@ export async function GET() {
       estimatedEarningsThisWeek = latestRate ? estimatedAmount : null;
     }
 
+    // Detect hours worked after a partial payment — those are NOT yet paid
+    const paidSnapshotAmount = summary?.isPaid ? (summary.totalAmount ?? 0) : 0;
+    const paidSnapshotHours = summary?.isPaid ? (summary.totalHours ?? 0) : 0;
+    const additionalAmount = summary?.isPaid
+      ? Math.max(0, Math.round((estimatedAmount - paidSnapshotAmount) * 100) / 100)
+      : 0;
+    const additionalHours = summary?.isPaid
+      ? Math.max(0, Math.round((clockedHours - paidSnapshotHours) * 100) / 100)
+      : 0;
+
     return {
       weekId: week.id,
       weekStartDate: week.weekStartDate,
@@ -126,11 +158,14 @@ export async function GET() {
       confirmedAmount: summary?.totalAmount ?? null,
       notes: summary?.notes ?? null,
       isCurrentWeek,
+      additionalHours,
+      additionalAmount,
     };
   }).filter((w: any) => w.clockedHours > 0 || w.isPaid);
 
   return NextResponse.json({
     currentWeek,
+    upcomingWeeks,
     payWeeks,
     clockedHoursThisWeek: Math.round(clockedHoursThisWeek * 100) / 100,
     estimatedEarningsThisWeek,
