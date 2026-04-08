@@ -24,7 +24,12 @@
       "Bash(taskkill:*)",
       "Bash(cmd /c \"taskkill /PID 12048 /F\")",
       "Bash(cmd /c \"taskkill /PID 12048 /F && echo killed\")",
-      "Bash(cmd /c \"npx kill-port 3000 3001\")"
+      "Bash(cmd /c \"npx kill-port 3000 3001\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const url = process.env.DATABASE_URL || ''; console.log\\('pooler:', url.includes\\('-pooler'\\)\\); console.log\\('direct:', url.includes\\('?'\\) ? url.split\\('?'\\)[1] : 'no params'\\);\")",
+      "Bash(findstr \"DATABASE_URL\" .env)",
+      "Bash(findstr \"pooler\")",
+      "Bash(findstr \"DIRECT_URL\" .env)"
     ]
   }
 }

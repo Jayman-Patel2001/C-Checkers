@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { applyMissedClockOuts } from "@/lib/auto-clockout";
 
 export async function GET(req: NextRequest, { params }: { params: { weekId: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Silently auto-clock-out anyone who forgot — runs before we return data so the page is always fresh
+  await applyMissedClockOuts();
 
   const week = await prisma.weekSchedule.findUnique({
     where: { id: params.weekId },

@@ -686,8 +686,8 @@ function EditCellModal({
                 </div>
               </div>
 
-              {/* Clock in/out override & Wage overrides — only after full shift */}
-              {schedule.clockIn && schedule.clockOut ? (
+              {/* Clock in/out override & Wage overrides — unlocked after clock in */}
+              {schedule.clockIn ? (
                 <>
                   {/* Clock in/out — admin editable override */}
                   <div className="space-y-2">
@@ -767,7 +767,7 @@ function EditCellModal({
                 </>
               ) : (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-500">
-                  Clock override and wage adjustments available after employee completes their shift (clocks in and out).
+                  Clock override and wage adjustments available after employee clocks in.
                 </div>
               )}
             </>
