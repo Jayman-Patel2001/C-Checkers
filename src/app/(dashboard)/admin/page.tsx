@@ -10,6 +10,7 @@ import {
   Activity,
   LogIn,
 } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { formatDuration, formatTime } from "@/lib/utils";
 import type { AdminDashboardData } from "@/types";
 
