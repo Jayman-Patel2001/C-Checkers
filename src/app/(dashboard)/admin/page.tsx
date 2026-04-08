@@ -7,13 +7,10 @@ import {
   Clock,
   Star,
   CheckSquare,
-  TrendingUp,
-  Coffee,
   Activity,
-  Zap,
+  LogIn,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { formatDuration, formatDurationShort, formatTime, calculateCurrentActiveTime } from "@/lib/utils";
+import { formatDuration, formatTime } from "@/lib/utils";
 import type { AdminDashboardData } from "@/types";
 
 export default function AdminDashboardPage() {
@@ -22,6 +19,7 @@ export default function AdminDashboardPage() {
   });
 
   if (isLoading || !data) return null;
+
 
   const stats = [
     {
@@ -80,114 +78,51 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      {/* Active Shifts */}
+      {/* Clocked In */}
       <div>
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Active Shifts</h2>
-        {(data?.recentShifts?.length ?? 0) === 0 ? (
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Clocked In</h2>
+        {(data?.clockedInEmployees?.length ?? 0) === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500">No active shifts right now</p>
+            <p className="text-slate-500">No one is clocked in right now</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data?.recentShifts.map((shift) => {
-              const shiftDuration = Math.floor(
-                (Date.now() - new Date(shift.startTime).getTime()) / 1000
+            {data?.clockedInEmployees.map((emp) => {
+              const elapsed = Math.floor(
+                (Date.now() - new Date(emp.clockIn).getTime()) / 1000
               );
-
-              // Get active task with live time
-              const activeTaskEntry = data.recentShifts
-                .find((s) => s.id === shift.id);
-
               return (
-                <div
-                  key={shift.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
+                <div key={emp.scheduleId} className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-slate-600 font-semibold text-sm">
-                          {shift.user.name.charAt(0)}
+                      <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-green-700 font-semibold text-sm">
+                          {emp.user.name.charAt(0)}
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-slate-800 text-sm truncate">{shift.user.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{shift.user.email}</p>
+                        <p className="font-semibold text-slate-800 text-sm truncate">{emp.user.name}</p>
+                        <p className="text-xs text-slate-500 truncate">{emp.user.email}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-mono font-bold text-slate-700">
-                        {formatDuration(shiftDuration)}
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm font-mono font-bold text-green-700">
+                        {formatDuration(elapsed)}
                       </div>
-                      <p className="text-xs text-slate-400">
-                        Since {formatTime(shift.startTime)}
-                      </p>
+                      <p className="text-xs text-slate-400">elapsed</p>
                     </div>
                   </div>
 
-                  {/* Productivity bar */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="flex items-center gap-1 text-green-600">
-                        <TrendingUp className="w-3 h-3" />
-                        {formatDurationShort(shift.productiveSeconds)} work
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <LogIn className="w-3 h-3 text-green-500" />
+                      Clocked in {formatTime(emp.clockIn)}
+                    </span>
+                    {emp.scheduledStart && emp.scheduledEnd && (
+                      <span className="text-slate-400">
+                        Scheduled {emp.scheduledStart} – {emp.scheduledEnd}
                       </span>
-                      <span className="flex items-center gap-1 text-orange-600">
-                        <Coffee className="w-3 h-3" />
-                        {formatDurationShort(shift.personalSeconds)} personal
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 flex overflow-hidden">
-                      {(shift.productiveSeconds + shift.personalSeconds) > 0 && (
-                        <>
-                          <div
-                            className="bg-green-500 h-2"
-                            style={{
-                              width: `${Math.round(
-                                (shift.productiveSeconds /
-                                  (shift.productiveSeconds + shift.personalSeconds)) *
-                                  100
-                              )}%`,
-                            }}
-                          />
-                          <div
-                            className="bg-orange-400 h-2"
-                            style={{
-                              width: `${Math.round(
-                                (shift.personalSeconds /
-                                  (shift.productiveSeconds + shift.personalSeconds)) *
-                                  100
-                              )}%`,
-                            }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-xs text-slate-500">{shift.totalTasks} tasks</span>
-                    {(activeTaskEntry as { activeTask?: { name: string; category: string } } | null)?.activeTask && (
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-xs text-green-600 font-medium truncate max-w-32">
-                          {(activeTaskEntry as { activeTask?: { name: string; category: string } }).activeTask?.name}
-                        </span>
-                        <Badge
-                          variant={
-                            (activeTaskEntry as { activeTask?: { name: string; category: string } }).activeTask?.category === "WORK"
-                              ? "work"
-                              : "personal"
-                          }
-                        >
-                          {(activeTaskEntry as { activeTask?: { name: string; category: string } }).activeTask?.category === "WORK" ? (
-                            <span className="flex items-center gap-0.5"><Zap className="w-2.5 h-2.5" /> Work</span>
-                          ) : (
-                            <span className="flex items-center gap-0.5"><Coffee className="w-2.5 h-2.5" /> Personal</span>
-                          )}
-                        </Badge>
-                      </div>
                     )}
                   </div>
                 </div>

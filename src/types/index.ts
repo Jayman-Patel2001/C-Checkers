@@ -119,18 +119,16 @@ export interface AdminDashboardData {
   activeShifts: number;
   pendingReviews: number;
   todayCompletedTasks: number;
-  recentShifts: ShiftWithStats[];
+  clockedInEmployees: ClockedInEmployee[];
   pendingReviewTasks: TaskEntryWithUser[];
 }
 
-export interface ShiftWithStats {
-  id: string;
-  user: User;
-  startTime: string;
-  endTime?: string | null;
-  productiveSeconds: number;
-  personalSeconds: number;
-  totalTasks: number;
+export interface ClockedInEmployee {
+  scheduleId: string;
+  user: { id: string; name: string; email: string };
+  clockIn: string;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
 }
 
 export interface TaskEntryWithUser extends TaskEntry {

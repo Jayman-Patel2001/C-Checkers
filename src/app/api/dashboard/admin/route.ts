@@ -28,7 +28,7 @@ export async function GET() {
     activeShiftsCount,
     pendingReviewsCount,
     todayCompletedCount,
-    activeShifts,
+    clockedInSchedules,
     pendingReviewTasks,
   ] = await Promise.all([
     prisma.user.count({ where: { role: "EMPLOYEE", isActive: true } }),
@@ -40,16 +40,10 @@ export async function GET() {
         completedAt: { gte: todayStartExact },
       },
     }),
-    prisma.shift.findMany({
-      where: { endTime: null },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } },
-        taskEntries: {
-          include: { taskDefinition: true, events: true, review: true },
-        },
-      },
-      orderBy: { startTime: "desc" },
-      take: 20,
+    prisma.employeeSchedule.findMany({
+      where: { clockIn: { not: null }, clockOut: null, date: todayStart },
+      include: { user: { select: { id: true, name: true, email: true } } },
+      orderBy: { clockIn: "asc" },
     }),
     prisma.taskEntry.findMany({
       where: { status: "COMPLETED", review: null },
@@ -64,41 +58,20 @@ export async function GET() {
     }),
   ]);
 
-  // Compute stats for each active shift
-  const shiftStats = activeShifts.map((shift: any) => {
-    let productiveSeconds = 0;
-    let personalSeconds = 0;
-    const nowMs = Date.now();
-
-    for (const task of shift.taskEntries) {
-      let taskTime = task.totalActiveTime;
-      if (task.status === "ACTIVE" && task.activeIntervalStart) {
-        taskTime += Math.floor(
-          (nowMs - new Date(task.activeIntervalStart).getTime()) / 1000
-        );
-      }
-      if (task.category === "WORK") productiveSeconds += taskTime;
-      else personalSeconds += taskTime;
-    }
-
-    return {
-      id: shift.id,
-      user: shift.user,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      productiveSeconds,
-      personalSeconds,
-      totalTasks: shift.taskEntries.length,
-      activeTask: shift.taskEntries.find((t: any) => t.status === "ACTIVE") || null,
-    };
-  });
+  const clockedInEmployees = clockedInSchedules.map((s: any) => ({
+    scheduleId: s.id,
+    user: s.user,
+    clockIn: s.clockIn,
+    scheduledStart: s.scheduledStart,
+    scheduledEnd: s.scheduledEnd,
+  }));
 
   return NextResponse.json({
     totalEmployees,
     activeShifts: activeShiftsCount,
     pendingReviews: pendingReviewsCount,
     todayCompletedTasks: todayCompletedCount,
-    recentShifts: shiftStats,
+    clockedInEmployees,
     pendingReviewTasks,
   });
 }
